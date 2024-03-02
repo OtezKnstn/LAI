@@ -1,4 +1,5 @@
 import pickle
+import requests
 
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.docstore.document import Document
@@ -6,6 +7,10 @@ from langchain.vectorstores import Chroma
 from langchain_community.embeddings.sentence_transformer import (
     SentenceTransformerEmbeddings,
 )
+
+import re
+
+
 
 
 def create_embedding(text_data: str) -> None:
@@ -27,3 +32,18 @@ def create_embedding(text_data: str) -> None:
     with open('chroma.pkl', 'wb') as file:
         pickle.dump(chroma_db, file)
 
+
+def read_source_documents(google_docs_url: str) -> None:
+    """
+    Читает текстовые документы из Google Docs по заданному URL.
+    """
+    
+    match_ = re.search('/document/d/([a-zA-Z0-9-_]+)', google_docs_url)
+    if match_ is None:
+        raise ValueError('Недопустимый URL Google Docs')
+    doc_id = match_.group(1)
+
+    response = requests.get(f'https://docs.google.com/document/d/{doc_id}/export?format=txt')
+    response.raise_for_status()
+    text = response.text
+    create_embedding(text)

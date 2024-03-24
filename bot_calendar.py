@@ -3,22 +3,22 @@ import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, ConversationHandler, filters
 from oauth2client.service_account import ServiceAccountCredentials
+from const import *
+
+from google_calendar import CalendarClient
 import gspread
-from llm_train.LAI import LAI
+import llm_train.rag_gpt_01 as rag
+import datetime
 
-# load_dotenv()
-
-TOKEN = ""
 GRADE = 1
-print(TOKEN)
+STATE_DATE = 1
 class Client():
     def __init__(self) -> None:
         # self.app = ApplicationBuilder().token(token).build()
         #если проблемы с инетом
-        self.app = ApplicationBuilder().token(TOKEN).read_timeout(100).write_timeout(100).build()
+        self.app = ApplicationBuilder().token(BOT_TOKEN).read_timeout(100).write_timeout(100).build()
 
-        self.lai = LAI()
-        
+             
 
         conv_handler = ConversationHandler(
         entry_points=[CommandHandler("grade", self.gradeCommand)],
@@ -33,7 +33,6 @@ class Client():
         },
         fallbacks=[MessageHandler(filters.Regex("^Done$"), self.done)],
         )
-        
         handlers = [CommandHandler("hello", self.hello),
                     conv_handler,
                     CommandHandler("start", self.startCommand),
@@ -55,6 +54,19 @@ class Client():
     def run(self):
         self.app.run_polling()
 
+    async def subscribe(self, update, context):
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="На какую дату вы хотите записаться?")
+        return STATE_DATE
+
+    async def handle_subscription_date(self, update, context):
+        selected_date = list(map(int, update.message.text.split(", ")))
+        name = update.effective_user.name
+        selected_date
+        self.cal.dataPreparation(name, selected_date)
+        
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Вы успешно записались на {selected_date}!")
+        return -1
+
     async def add_to_gsheet(self, message, response, user):
         self.wks.append_row([user, message, response, '-'])
 
@@ -63,13 +75,12 @@ class Client():
         self.wks.update_cell(buf_list[-1].row, 4, grade)
 
     async def startCommand(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await update.message.reply_text('Привет, давай пообщаемся?')
+        await update.message.reply_text('Привет! Я бот. Как дела?')
 
     async def hello(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:        
         await update.message.reply_text(f'Hello {update.effective_user.first_name}')
     
     async def gradeCommand(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        # await self.grade_to_answer(update.effective_user.name)
         await update.message.reply_text(f'Поставьте оценку ответу от 0 до 10')
         return GRADE
 
@@ -88,19 +99,16 @@ class Client():
         await update.message.reply_text('чат очищен')
 
     async def textMessage(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if update.message.text in context.chat_data:
-            await self.add_to_gsheet(update.message.text, context.chat_data[update.message.text], update.effective_user.name)
-            await update.message.reply_text(context.chat_data[update.message.text])
-            return
-        # response = f'Получил Ваше сообщение: {update.message.text}'
-        while response == '':
-            response, chunk = self.lai.answer_index(update.message.text)
-            print("отправил запрос")
-        print(chunk)
+        response = rag.answer_user_question(update.message.text)
+        # match = re.match(r"[0-9]{1,2}\, [0-9]{1,2}\, [0-9]{1,2}\, [0-9]{1, 2}\, [0-9]{1, 2}", response)
+        if response[0] == "2" and len(response) < 25:
+            y, m, d, h, min, sec =map(int,response.split(', '))
+            c = CalendarClient()
+            start_time = datetime.datetime(y, m, d, h, min, sec, tzinfo=datetime.timezone.utc)
+            response = c.create_google_calendar_event(update.effective_user.name, start_time)
         await self.add_to_gsheet(update.message.text, response, update.effective_user.name)
         await update.message.reply_text(response)
-        context.chat_data[update.message.text] = response
-        print(context.chat_data,"\n")
+
 
 
 if __name__ == '__main__':

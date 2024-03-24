@@ -2,3 +2,6 @@
 __pycache__
 .env
 test.json
+const.py
+calendar-gpt-test-id.json
+data_base/

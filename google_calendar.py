@@ -34,14 +34,17 @@ class CalendarClient:
             print(f'Произошла ошибка при проверке событий: {e}')
             return True
 
-    def create_google_calendar_event(self, client_name, start_time, duration_hours=1):
+    def create_google_calendar_event(self, client_name : str, date : str, duration_hours : int=1) -> str:
         # Авторизация с использованием файла с учетными данными
         credentials = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE, scopes=['https://www.googleapis.com/auth/calendar'])
 
         # Создание клиента для работы с API Google Календарь
         service = googleapiclient.discovery.build('calendar', 'v3', credentials=credentials)
-
+        
+        y, m, d, h, min, sec =map(int,date.split(', '))
+        start_time = datetime.datetime(y, m, d, h, min, sec, tzinfo=datetime.timezone.utc)
+        
         moscow_timezone = timezone('Europe/Moscow')
         start_time = start_time.astimezone(moscow_timezone)
         end_time = start_time + datetime.timedelta(hours=duration_hours)

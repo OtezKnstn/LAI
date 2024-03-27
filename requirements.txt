@@ -10,3 +10,4 @@ langchain_community
 re 
 tiktoken
 google-api-python-client
+docx2txt

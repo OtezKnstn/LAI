@@ -1,22 +1,20 @@
 import re        # для работы с регулярными выражениями
+import codecs
 from langchain.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
+# import openai
 from openai import OpenAI
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 import os
-from const import *
-import codecs
-
-
-API_KEY = OPEN_AI_API
-LL_MODEL = "gpt-3.5-turbo"
+from datetime import datetime
 
 client = OpenAI(
-            # This is the default and can be omitted
-            api_key=OPEN_AI_API,
-        )
+                base_url="http://serv.sae.ru:8888/v1",
+                # base_url="http://localhost:1234/v1",
+                api_key= "no need"
+            )
 
 # Функция загруки содержимого текстового файла
 def load_text(file_path):
@@ -26,13 +24,12 @@ def load_text(file_path):
         content = input_file.read()
     return content
 
-
 # Функция создания индексной базы знаний
-def create_index_db(database: list):
+def create_index_db(database):
     # model_id = 'sentence-transformers/all-MiniLM-L6-v2'
     model_id = 'intfloat/multilingual-e5-large'
-    # model_kwargs = {'device': 'cpu'}
-    model_kwargs = {'device': 'cuda'}
+    model_kwargs = {'device': 'cpu'}
+    # model_kwargs = {'device': 'cuda'}
     embeddings = HuggingFaceEmbeddings(
       model_name=model_id,
       model_kwargs=model_kwargs
@@ -46,10 +43,8 @@ def create_index_db(database: list):
         else:
             faiss_index_i = FAISS.from_documents(content.load_and_split(splitter), embeddings)
             faiss_index.merge_from(faiss_index_i)
-
+    # faiss_index.save_local()
     return faiss_index
-
-
 
 # Функция получения релевантные чанков из индексной базы знаний на основе заданной темы
 def get_message_content(topic, index_db, k_num):
@@ -61,18 +56,16 @@ def get_message_content(topic, index_db, k_num):
 
 # Функция отправки запроса в модель и получения ответа от модели
 def answer_index(system, topic, message_content, temp):
-
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": f"Вот документ с информацией для ответа клиенту: {message_content}\n\n Вот вопрос клиента: \n{topic}"}
+        {"role": "user", "content": f"Вот документ для ответа клиенту: {message_content}\nСегодняшняя дата{datetime.today().strftime('%Y-%m-%d %H:%M:%S')}\n Вот вопрос клиента:{topic}"}
     ]
-
     completion = client.chat.completions.create(
-            model=LL_MODEL,
-            messages=messages,
-            temperature=temp,
-            stream=False,
-        )
+        model='no need anymore',
+        messages=messages,
+        temperature=temp,
+        stream=False
+    )
     answer = completion.choices[0].message.content
 
     return answer  # возвращает ответ
@@ -84,7 +77,7 @@ data = os.listdir(directory)
 database = []
 
 for i in range(len(data)):
-    if data[i].endswith('.pdf'):
+    if data[i].endswith('.docx'):
         database.append(directory +"/" + data[i])
     
 
@@ -97,17 +90,15 @@ system = load_text('./llm_train/prompt.txt')
 
 def answer_user_question(topic):
     # Ищем реливантные вопросу чанки и формируем контент для модели, который будет подаваться в user
-    message_content = get_message_content(topic, index_db, k_num=2)
+    message_content = get_message_content(topic, index_db, k_num=3)
     # Делаем запрос в модель и получаем ответ модели
     answer = answer_index(system, topic, message_content, temp=0.2)
     return answer
 
 if __name__ == '__main__':
-    topic ="запиши меня на 2 апреля этого года на 10 утра"
-    # print(database)
-    answer, message_content = answer_user_question(topic)
-    print(f'answer={answer}')
-    topic ="расскажи про тарифы"
-    answer, message_content = answer_user_question(topic)
-    print(f'answer={answer}')
+    while(1):
+        topic = input('user: ')
+        answer, message_content = answer_user_question(topic)
+        print(f'answer={answer}')
+        
 

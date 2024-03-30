@@ -1,17 +1,17 @@
 import os
 # from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, ConversationHandler, filters
 from oauth2client.service_account import ServiceAccountCredentials
 from const import *
 
 from google_calendar import CalendarClient
 import gspread
-import llm_train.rag_lm_01 as rag
+import llm_train.rag_gpt_01 as rag
 
 
 GRADE = range(1)
-CONFIRM, SET_DATE= range(2)
+CONFIRM = range(1)
 class Client():
     def __init__(self) -> None:
         # self.app = ApplicationBuilder().token(token).build()
@@ -38,12 +38,6 @@ class Client():
         states={
             CONFIRM:[
                 MessageHandler(
-                    filters.Regex("^(Верно|Не верно)$"), self.confirmDate
-                ),
-                # MessageHandler(filters.Regex("^Something else...$"), self.confirmDate),
-            ],
-            SET_DATE:[
-                MessageHandler(
                     filters.TEXT, self.setDate
                 ),
                 # MessageHandler(filters.Regex("^Something else...$"), self.confirmDate),
@@ -61,35 +55,47 @@ class Client():
                     # MessageHandler(filters= None, callback= self.textMessage)
                     ]
         self.app.add_handlers(handlers)
-
+        self.wks = None
         #для гугл таблиц
-        gscope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        gcredentials = 'test.json'
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(gcredentials, gscope)
-        
-        gdocument = 'llm'
-        gc = gspread.authorize(credentials)
-        self.wks = gc.open(gdocument).sheet1
+        try:
+            gscope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+            gcredentials = 'test.json'
+            credentials = ServiceAccountCredentials.from_json_keyfile_name(gcredentials, gscope)
+            
+            gdocument = 'llm'
+            gc = gspread.authorize(credentials)
+            self.wks = gc.open(gdocument).sheet1
+        except:
+            self.wks = None
+            print("Не удалось подключиться к таблице")
         print("бот запущен")
 
     def run(self):
         self.app.run_polling()
     async def test(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         context.user_data['date'] = "2024, 4, 2, 10, 0, 0"
-
-    async def confirmDate(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        y, m, d, h, min, sec = map(int, context.user_data['date'].split(', '))
-        await update.message.reply_text(f'Проверьте правильноть записи:',
-                                        f"Вы хотите записаться на {d}.{m}.{y} в {h}:{min}?")
-        return SET_DATE
     
     async def setDate(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if update.message.text == "Верно":
-            c = CalendarClient()
-            response = c.create_google_calendar_event(update.effective_user.name, context.user_data['date'])
-            await update.message.reply_text(response)
-        else:
+        if update.message.text == "Верно" or update.message.text == "верно":
+            try:
+                c = CalendarClient()
+                response = c.create_google_calendar_event(update.effective_user.name, context.user_data['date'])
+                await update.message.reply_text(response)
+            except:
+                await update.message.reply_text("Возникли проблемы с календарём, попробуйте позже")
+        elif update.message.text == "Не верно" or update.message.text == "не верно":
             await update.message.reply_text("На какое число вы тогда хотите записаться?")
+        else:
+            keyboard = [
+                [
+                    InlineKeyboardButton("Верно", callback_data="Верно"),
+                    InlineKeyboardButton("Не верно", callback_data="Не верно"),
+                ],
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text("Верно или не верно?", reply_markup=reply_markup)
+            return CONFIRM
         context.user_data.pop('date')
         return ConversationHandler.END
     
@@ -128,13 +134,20 @@ class Client():
         response = rag.answer_user_question(update.message.text)
         # match = re.match(r"[0-9]{1,2}\, [0-9]{1,2}\, [0-9]{1,2}\, [0-9]{1, 2}\, [0-9]{1, 2}", response)
         if response[0] == "2" and len(response) < 25:
+            keyboard = [
+                [
+                    InlineKeyboardButton("Верно", callback_data="Верно"),
+                    InlineKeyboardButton("Не верно", callback_data="Не верно"),
+                ],
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
             context.user_data['date'] = response
+            y, m, d, h, min, sec = map(int, context.user_data['date'].split(', '))
+            await update.message.reply_text(f"Проверьте правильноть записи:\n{d}.{m}.{y} в {h}:{min}?", reply_markup=reply_markup)
             return CONFIRM
-            # y, m, d, h, min, sec =map(int,response.split(', '))
-            # start_time = datetime.datetime(y, m, d, h, min, sec, tzinfo=datetime.timezone.utc)
-            # c = CalendarClient()
-            # response = c.create_google_calendar_event(update.effective_user.name, response)
-        await self.add_to_gsheet(update.message.text, response, update.effective_user.name)
+        if self.wks is not None:
+            await self.add_to_gsheet(update.message.text, response, update.effective_user.name)
         await update.message.reply_text(response)
         return ConversationHandler.END
 

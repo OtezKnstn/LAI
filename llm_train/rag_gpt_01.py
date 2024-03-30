@@ -3,6 +3,7 @@ from langchain.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from openai import OpenAI
 import os
@@ -17,7 +18,7 @@ client = OpenAI(
             # This is the default and can be omitted
             api_key=OPEN_AI_API,
         )
-
+# openai.api_key = OPEN_AI_API
 # Функция загруки содержимого текстового файла
 def load_text(file_path):
     # Открытие файла для чтения
@@ -29,14 +30,15 @@ def load_text(file_path):
 
 # Функция создания индексной базы знаний
 def create_index_db(database: list):
-    # model_id = 'sentence-transformers/all-MiniLM-L6-v2'
-    model_id = 'intfloat/multilingual-e5-large'
-    # model_kwargs = {'device': 'cpu'}
-    model_kwargs = {'device': 'cuda'}
+    model_id = 'sentence-transformers/all-MiniLM-L6-v2'
+    # model_id = 'intfloat/multilingual-e5-large'
+    model_kwargs = {'device': 'cpu'}
+    # model_kwargs = {'device': 'cuda'}
     embeddings = HuggingFaceEmbeddings(
       model_name=model_id,
       model_kwargs=model_kwargs
     )
+    # embeddings = OpenAIEmbeddings(openai_api_key=OPEN_AI_API)
     splitter = CharacterTextSplitter(separator="\n", chunk_size=512, chunk_overlap=0)
     for index, doc in enumerate(database):
         # content = PyPDFLoader(doc)
@@ -84,7 +86,7 @@ data = os.listdir(directory)
 database = []
 
 for i in range(len(data)):
-    if data[i].endswith('.pdf'):
+    if data[i].endswith('.docx'):
         database.append(directory +"/" + data[i])
     
 

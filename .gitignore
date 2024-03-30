@@ -4,4 +4,4 @@ __pycache__
 test.json
 const.py
 calendar-gpt-test-id.json
-data_base/
+data_base/*

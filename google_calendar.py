@@ -2,9 +2,7 @@ import datetime
 from pytz import timezone
 from google.oauth2 import service_account
 import googleapiclient.discovery
-
-SERVICE_ACCOUNT_FILE = 'calendar-gpt-test-id.json'
-CALENDAR_ID = 'ee29acc6700287d4d46387794b638d1616d8075d8198788220050d9eefb9288e@group.calendar.google.com'
+from const import *
 
 class CalendarClient:
     def __init__(self):

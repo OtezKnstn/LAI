@@ -7,7 +7,7 @@ from const import *
 
 from google_calendar import CalendarClient
 import gspread
-import llm_train.rag_gpt_01 as rag
+import llm_train.rag as rag
 
 
 GRADE = range(1)
@@ -131,7 +131,7 @@ class Client():
         await update.message.reply_text('чат очищен')
 
     async def textMessage(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        response = rag.answer_user_question(update.message.text)
+        response = rag.answer_user_question_lm(update.message.text)
         # match = re.match(r"[0-9]{1,2}\, [0-9]{1,2}\, [0-9]{1,2}\, [0-9]{1, 2}\, [0-9]{1, 2}", response)
         if response[0] == "2" and len(response) < 25:
             keyboard = [
